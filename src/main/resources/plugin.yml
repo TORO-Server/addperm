@@ -1,5 +1,5 @@
 name: AddPerm
-version: 1.1
+version: 1.2
 main: prj.salmon.addparm.Add_parm
 api-version: 1.20
 commands:
@@ -10,4 +10,12 @@ commands:
   delbuilder:
     description: Delete a player to the buiilder group.
     usage: /delbuilder <MCID>
+    permission: addbuilder.use
+  adddriver:
+    description: Add a player to the driver group.
+    usage: /adddriver <MCID>
+    permission: addbuilder.use
+  deldriver:
+    description: Delete a player to the driver group.
+    usage: /deldriver <MCID>
     permission: addbuilder.use

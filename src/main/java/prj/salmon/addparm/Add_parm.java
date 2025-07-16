@@ -19,8 +19,7 @@ public class Add_parm extends JavaPlugin {
 
     @Override
     public void onEnable() {
-        saveDefaultConfig(); // config.ymlがない場合に自動生成
-
+        saveDefaultConfig();
         String webhookUrl = getConfig().getString("webhook-url", "");
         if (webhookUrl.isEmpty()) {
             getLogger().warning("Webhook URL が設定されていません！");
@@ -28,8 +27,14 @@ public class Add_parm extends JavaPlugin {
             webhookSender = new webhooksender(webhookUrl);
         }
 
-        getCommand("addbuilder").setExecutor(new AddBuilderCommand());
-        getCommand("delbuilder").setExecutor(new DelBuilderCommand());
+        registerCommands();
+    }
+
+    private void registerCommands() {
+        getCommand("addbuilder").setExecutor(new PermissionCommand("builder", true));
+        getCommand("delbuilder").setExecutor(new PermissionCommand("builder", false));
+        getCommand("adddriver").setExecutor(new PermissionCommand("driver", true));
+        getCommand("deldriver").setExecutor(new PermissionCommand("driver", false));
     }
 
     public static webhooksender getWebhookSender() {
@@ -49,7 +54,7 @@ public class Add_parm extends JavaPlugin {
 
         FloodgateApi floodgate = FloodgateApi.getInstance();
         if (floodgate != null) {
-            UUID floodgateUUID = floodgate.getUuidFor(playerName).join(); // 非同期結果を同期的に取得
+            UUID floodgateUUID = floodgate.getUuidFor(playerName).join();
             if (floodgateUUID != null) {
                 return floodgateUUID;
             }
@@ -58,12 +63,19 @@ public class Add_parm extends JavaPlugin {
         return null;
     }
 
-    public static class AddBuilderCommand implements CommandExecutor {
+    private class PermissionCommand implements CommandExecutor {
+        private final String group;
+        private final boolean isAdd;
+
+        PermissionCommand(String group, boolean isAdd) {
+            this.group = group;
+            this.isAdd = isAdd;
+        }
 
         @Override
         public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
             if (args.length != 1) {
-                sender.sendMessage("使用方法: /addbuilder <MCID>");
+                sender.sendMessage(String.format("使用方法: /%s <MCID>", label));
                 return true;
             }
 
@@ -84,79 +96,32 @@ public class Add_parm extends JavaPlugin {
 
             luckPerms.getUserManager().loadUser(targetUUID).thenAcceptAsync(user -> {
                 if (user == null) {
-                    Bukkit.getScheduler().runTask(JavaPlugin.getProvidingPlugin(Add_parm.class), () ->
-                            sender.sendMessage("指定されたプレイヤーのデータを取得できませんでした。")
-                    );
+                    scheduleSyncTask(() -> sender.sendMessage("指定されたプレイヤーのデータを取得できませんでした。"));
                     return;
                 }
 
-                Node builderGroupNode = Node.builder("group.builder").build();
-                user.data().add(builderGroupNode);
+                String groupNode = "group." + group;
+                if (isAdd) {
+                    user.data().add(Node.builder(groupNode).build());
+                } else {
+                    user.data().clear(node -> node.getKey().equals(groupNode));
+                }
                 luckPerms.getUserManager().saveUser(user);
 
-                // 送信者がプレイヤーかコンソールかを判定
                 String senderName = sender instanceof Player ? ((Player) sender).getName() : "Console";
-
-                String title = senderName + " が " + targetName + " に WEを付与しました";
+                String action = isAdd ? "付与" : "剥奪";
+                String role = group.equals("builder") ? "WE" : "Driver";
+                String title = String.format("%s が %s に %sを%sしました", senderName, targetName, role, action);
                 webhookSender.createThreadAndSendLog(title);
 
-                Bukkit.getScheduler().runTask(JavaPlugin.getProvidingPlugin(Add_parm.class), () ->
-                        sender.sendMessage(targetName + " に WEを付与しました。")
-                );
+                scheduleSyncTask(() -> sender.sendMessage(String.format("%s に %sを%sしました。", targetName, role, action)));
             });
 
             return true;
         }
-    }
 
-    public static class DelBuilderCommand implements CommandExecutor {
-
-        @Override
-        public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-            if (args.length != 1) {
-                sender.sendMessage("使用方法: /delbuilder <MCID>");
-                return true;
-            }
-
-            String targetName = args[0];
-            LuckPerms luckPerms;
-            try {
-                luckPerms = LuckPermsProvider.get();
-            } catch (IllegalStateException e) {
-                sender.sendMessage("LuckPerms API のロードに失敗しました。");
-                return true;
-            }
-
-            UUID targetUUID = resolveUUID(targetName);
-            if (targetUUID == null) {
-                sender.sendMessage("指定されたプレイヤーは存在しません。");
-                return true;
-            }
-
-            luckPerms.getUserManager().loadUser(targetUUID).thenAcceptAsync(user -> {
-                if (user == null) {
-                    Bukkit.getScheduler().runTask(JavaPlugin.getProvidingPlugin(Add_parm.class), () ->
-                            sender.sendMessage("指定されたプレイヤーのデータを取得できませんでした。")
-                    );
-                    return;
-                }
-
-                // group.builder を削除
-                user.data().clear(node -> node.getKey().equals("group.builder"));
-                luckPerms.getUserManager().saveUser(user);
-
-                // 送信者がプレイヤーかコンソールかを判定
-                String senderName = sender instanceof Player ? ((Player) sender).getName() : "Console";
-
-                String title = senderName + " が " + targetName + " から WEを剥奪しました";
-                webhookSender.createThreadAndSendLog(title);
-
-                Bukkit.getScheduler().runTask(JavaPlugin.getProvidingPlugin(Add_parm.class), () ->
-                        sender.sendMessage(targetName + " から WEを剥奪しました。")
-                );
-            });
-
-            return true;
+        private void scheduleSyncTask(Runnable task) {
+            Bukkit.getScheduler().runTask(Add_parm.this, task);
         }
     }
 }
