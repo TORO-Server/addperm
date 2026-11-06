@@ -3,17 +3,19 @@ plugins {
 }
 
 group = 'prj.salmon'
-version = '1.2'
+version = '1.2.1'
 
 repositories {
     mavenCentral()
     maven {
         name = "spigotmc-repo"
         url = "https://hub.spigotmc.org/nexus/content/repositories/snapshots/"
+        content { includeGroup 'org.spigotmc' }
     }
     maven {
         name = "sonatype"
         url = "https://oss.sonatype.org/content/groups/public/"
+        content { includeGroup 'net.md-5' }
     }
 }
 
@@ -50,13 +52,22 @@ processResources {
 repositories {
     maven {
         url = uri("https://repo.opencollab.dev/maven-snapshots/")
+        content { includeGroupByRegex 'org\\.geysermc(\\..*)?' }
     }
     maven {
         url = uri("https://repo.lucko.me/")
+        content { includeGroup 'net.luckperms' }
     }
 }
 
 dependencies {
     compileOnly 'net.luckperms:api:5.4'
-    compileOnly 'org.geysermc.floodgate:api:2.0-SNAPSHOT'
+    // Only the API classes are compiled against. Its old snapshot asks for a module that no repository has anymore.
+    compileOnly('org.geysermc.floodgate:api:2.0-SNAPSHOT') { transitive = false }
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
+
+configurations.testImplementation.extendsFrom(configurations.compileOnly)
+tasks.named('test') { useJUnitPlatform() }

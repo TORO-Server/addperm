@@ -112,7 +112,9 @@ public class Add_parm extends JavaPlugin {
                 String action = isAdd ? "付与" : "剥奪";
                 String role = group.equals("builder") ? "WE" : "Driver";
                 String title = String.format("%s が %s に %sを%sしました", senderName, targetName, role, action);
-                webhookSender.createThreadAndSendLog(title);
+                if (webhookSender != null) {
+                    webhookSender.createThreadAndSendLog(title);
+                }
 
                 scheduleSyncTask(() -> sender.sendMessage(String.format("%s に %sを%sしました。", targetName, role, action)));
             });
